@@ -20,6 +20,8 @@ from models.pessoa import Pessoa #importando modelo
 with app.app_context():
     db.create_all()
 
+
+
 #vamos resolver aqui
 @app.route("/pessoas", methods=["POST"])
 def criar_pessoa():
@@ -153,3 +155,7 @@ def delete_pessoa(pessoa_id):
     except exc.SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({"message": f"Erro ao deletar pessoa: {str(e)}"}), 500
+    
+
+if __name__ == "__main__":
+    app.run(debug=True)

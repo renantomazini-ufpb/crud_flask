@@ -17,6 +17,7 @@ class Pessoa(db.Model):
             "nome": self.nome,
             "cargo": self.cargo,
             "salario": self.salario,
+            "setor": self.setor,
             "tipo": self.tipo,
             "ativo": self.ativo
         }
