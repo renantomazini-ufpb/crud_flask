@@ -42,7 +42,7 @@ def criar_pessoa():
 
     try:
         new_pessoa = Pessoa(
-            nomed=data.get("nome"),
+            nome=data.get("nome"),
             cargo=data.get("cargo"),
             setor=data.get("setor"),
             salario=data.get("salario"),
@@ -85,10 +85,10 @@ def desativar_pessoa(pessoa_id):
     if not pessoa:
         return jsonify({"message": "Pessoa não encontrada"}), 404
     
-    if pessoa.ativo:
+    if not pessoa.ativo:
         return jsonify({"message": "Pessoa já desativada"}), 200
     
-    pessoa.ativar()
+    pessoa.desativar()
     #salvar no banco de dados
     try:
         db.session.commit()
@@ -107,10 +107,10 @@ def get_pessoas():
 
 @app.route("/pessoas/<int:pessoa_id>", methods=["GET"])
 def get_pessoa(pessoa_id):
-    pessoa = next((p for p in pessoas if p["id"] == pessoa_id), None)
+    pessoa = Pessoa.query.get(pessoa_id) 
     if not pessoa:
         return jsonify({"message": "Não encontrado"}), 404
-    return jsonify(pessoa)
+    return jsonify(pessoa.to_dict())
 
 @app.route("/pessoas/<int:pessoa_id>", methods=["PUT"]) 
 def update_pessoa(pessoa_id):
@@ -138,10 +138,18 @@ def update_pessoa(pessoa_id):
 
 @app.route("/pessoas/<int:pessoa_id>", methods=["DELETE"])
 def delete_pessoa(pessoa_id):
-    global pessoas
-    pessoa = next((p for p in pessoas if p["id"] == pessoa_id), None)
+    pessoa = Pessoa.query.get(pessoa_id)
+
     if not pessoa:
         return jsonify({"message": "Pessoa não encontrada"}), 404
-    pessoas = [p for p in pessoas if p["id"] != pessoa_id]
-    return jsonify({"message": "Pessoa deletada!"})
 
+    try:
+
+        db.session.delete(pessoa)
+        db.session.commit()
+        
+        return jsonify({"message": "Pessoa deletada com sucesso!"}), 200
+        
+    except exc.SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"message": f"Erro ao deletar pessoa: {str(e)}"}), 500
