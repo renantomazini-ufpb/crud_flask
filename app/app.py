@@ -1,9 +1,11 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import exc
+from flask_cors import CORS # Importe o CORS
 
 
 app = Flask(__name__)
+CORS(app)
 
 #depois passo para um banco 21/10
 #pessoas = []
