@@ -26,3 +26,6 @@ class Pessoa(db.Model):
     
     def ativar(self):
         self.ativo = True #fazer a rota
+
+    def desativar(self):
+        self.ativo = False #fazer a rota
