@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento e Análise de Pessoas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#4f46e5',
+                        'primary-light': '#6366f1',
+                        'secondary': '#f97316',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Estilos globais para a fonte */
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+    </style>
+</head>
+<body class="min-h-screen p-4 sm:p-8">
+    <div id="app" class="max-w-7xl mx-auto">
+        
+        <header class="mb-8 p-4 bg-white shadow-lg rounded-xl">
+            <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Sistema de Gestão de Colaboradores</h1>
+            <p class="text-gray-500 mt-1">Integração com API Flask em http://127.0.0.1:5000.</p>
+        </header>
+
+        <div class="bg-white p-6 shadow-lg rounded-xl mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-primary">Novo Cadastro</h2>
+            <form id="pessoaForm" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <input type="text" id="nome" placeholder="Nome" required 
+                       class="col-span-1 sm:col-span-1 p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                
+                <input type="text" id="cargo" placeholder="Cargo" required
+                       class="p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                
+                <input type="text" id="setor" placeholder="Setor" required
+                       class="p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                
+                <input type="number" id="salario" placeholder="Salário (R$)" step="0.01" required
+                       class="p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                
+                <select id="tipo" required
+                        class="p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary bg-white">
+                    <option value="" disabled selected>Tipo de Contrato</option>
+                    <option value="CLT">CLT</option>
+                    <option value="PJ">PJ</option>
+                </select>
+
+                <button type="submit" 
+                        class="col-span-1 sm:col-span-1 p-3 bg-primary hover:bg-primary-light text-white font-bold rounded-lg transition duration-200 shadow-md hover:shadow-lg">
+                    Cadastrar Colaborador
+                </button>
+            </form>
+            <div id="messageBox" class="mt-4 p-3 rounded-lg text-sm hidden"></div>
+        </div>
+
+        <div class="bg-white p-6 shadow-lg rounded-xl mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-primary">Lista de Colaboradores (<span id="totalCount">0</span>)</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cargo</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Setor</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salário</th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pessoasTableBody" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="editModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 z-50 hidden justify-center items-center">
+            <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg transform transition-all duration-300">
+                <h3 class="text-xl font-bold mb-4 text-primary">Editar Colaborador</h3>
+                <form id="editForm" class="grid grid-cols-2 gap-4">
+                    <input type="hidden" id="edit-id">
+                    
+                    <label class="col-span-2 block">Nome:
+                        <input type="text" id="edit-nome" required class="w-full mt-1 p-2 border rounded-lg">
+                    </label>
+                    <label class="block">Cargo:
+                        <input type="text" id="edit-cargo" required class="w-full mt-1 p-2 border rounded-lg">
+                    </label>
+                    <label class="block">Setor:
+                        <input type="text" id="edit-setor" required class="w-full mt-1 p-2 border rounded-lg">
+                    </label>
+                    <label class="block">Salário (R$):
+                        <input type="number" id="edit-salario" step="0.01" required class="w-full mt-1 p-2 border rounded-lg">
+                    </label>
+                    <label class="block">Tipo:
+                        <select id="edit-tipo" required class="w-full mt-1 p-2 border rounded-lg bg-white">
+                            <option value="CLT">CLT</option>
+                            <option value="PJ">PJ</option>
+                        </select>
+                    </label>
+                    <label class="col-span-2 flex items-center mt-2">
+                        <input type="checkbox" id="edit-ativo" class="h-4 w-4 text-primary rounded border-gray-300">
+                        <span class="ml-2 text-gray-700">Ativo</span>
+                    </label>
+
+                    <div class="col-span-2 flex justify-end space-x-3 mt-4">
+                        <button type="button" onclick="closeEditModal()" 
+                                class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-150">
+                            Cancelar
+                        </button>
+                        <button type="submit" 
+                                class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-light transition duration-150">
+                            Salvar Alterações
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-8">
+            <h2 class="text-3xl font-extrabold text-gray-800 tracking-tight mb-6">Análise de Dados de Pessoas</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                 <div class="bg-white p-6 shadow-lg rounded-xl border-l-4 border-primary">
+                    <h3 class="text-lg font-medium text-gray-500">💰 Total Gasto em Um Mês</h3>
+                    <p id="totalGastoMes" class="text-3xl font-bold text-primary mt-1">R$ 0,00</p>
+                </div>
+                <div class="bg-white p-6 shadow-lg rounded-xl border-l-4 border-secondary">
+                    <h3 class="text-lg font-medium text-gray-500">🗓️ Total de Salário em 12 Meses</h3>
+                    <p id="totalGasto12Meses" class="text-3xl font-bold text-secondary mt-1">R$ 0,00</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-secondary">💰 Gastos Totais por Setor (Doughnut)</h3>
+                    <div class="h-80"><canvas id="chartGastosSetorTotal"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-secondary">🟢 Gastos por Setor (Apenas Ativos)</h3>
+                    <div class="h-80"><canvas id="chartGastosSetorAtivo"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-primary">👥 Contagem por Setor (Total)</h3>
+                    <div class="h-80"><canvas id="chartContagemSetorTotal"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-primary">✅ Contagem por Setor (Apenas Ativos)</h3>
+                    <div class="h-80"><canvas id="chartContagemSetorAtivo"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-primary">🔄 Status: Ativos vs. Inativos</h3>
+                    <div class="h-80"><canvas id="chartAtivosInativos"></canvas></div>
+                </div>
+                
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-primary">⚖️ Tipo de Contrato (CLT vs. PJ)</h3>
+                    <div class="h-80"><canvas id="chartTipoContrato"></canvas></div>
+                </div>
+                
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-secondary">💸 Gastos por Tipo de Contrato</h3>
+                    <div class="h-80"><canvas id="chartGastosTipoContrato"></canvas></div>
+                </div>
+                
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-secondary">✅ Gastos por Contrato (Apenas Ativos)</h3>
+                    <div class="h-80"><canvas id="chartGastosTipoContratoAtivo"></canvas></div>
+                </div>
+                
+            </div>
+            
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
+                
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-secondary">💸 Gastos Totais por Setor</h3>
+                    <div class="h-96 w-full"><canvas id="chartGastosSetorBarra"></canvas></div>
+                </div>
+
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-primary">🏢 Contagem Total de Colaboradores por Setor</h3>
+                    <div class="h-96 w-full"><canvas id="chartContagemSetorBarra"></canvas></div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 shadow-lg rounded-xl mt-6">
+                <h3 class="text-xl font-semibold mb-4 text-primary">🧑‍💻 Cargos Agrupados no Setor: TI</h3>
+                <div class="h-96 w-full"><canvas id="chartCargosTI"></canvas></div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-secondary">📈 Média Salarial por Setor</h3>
+                    <div class="overflow-x-auto">
+                        <table id="mediaSalarialTable" class="min-w-full divide-y divide-gray-200">
+                            </table>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 shadow-lg rounded-xl">
+                    <h3 class="text-xl font-semibold mb-4 text-primary">⚖️ Dispersão: Custo vs. Qtd. Pessoas por Setor</h3>
+                    <div class="overflow-x-auto">
+                        <table id="dispersaoTable" class="min-w-full divide-y divide-gray-200">
+                             </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        // --- Endereço da API ajustado para o localhost:5000 ---
+        const API_BASE_URL = "http://127.0.0.1:5000/pessoas"; 
+        const messageBox = document.getElementById('messageBox');
+        let myCharts = {}; // Objeto para armazenar referências aos gráficos e destruí-los
+
+        // --- Funções de Utilidade UI ---
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        }
+
+        function showMessage(message, isError = false) {
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+            if (isError) {
+                messageBox.classList.add('bg-red-100', 'text-red-700');
+            } else {
+                messageBox.classList.add('bg-green-100', 'text-green-700');
+            }
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 5000);
+        }
+
+        // --- Funções do Modal de Edição (Mantidas) ---
+
+        function openEditModal(pessoa) {
+            document.getElementById('edit-id').value = pessoa.id;
+            document.getElementById('edit-nome').value = pessoa.nome;
+            document.getElementById('edit-cargo').value = pessoa.cargo;
+            document.getElementById('edit-setor').value = pessoa.setor || ''; 
+            document.getElementById('edit-salario').value = pessoa.salario;
+            document.getElementById('edit-tipo').value = pessoa.tipo;
+            document.getElementById('edit-ativo').checked = pessoa.ativo;
+            
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        // --- Funções de Interação com a API (CRUD) (Mantidas) ---
+
+        document.getElementById('pessoaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                nome: document.getElementById('nome').value,
+                cargo: document.getElementById('cargo').value,
+                setor: document.getElementById('setor').value,
+                salario: parseFloat(document.getElementById('salario').value),
+                tipo: document.getElementById('tipo').value,
+            };
+            try {
+                const response = await fetch(API_BASE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(result.message, false);
+                    document.getElementById('pessoaForm').reset();
+                    fetchPessoas(); 
+                } else {
+                    showMessage(`Erro ao cadastrar: ${result.message}`, true);
+                }
+            } catch (error) {
+                console.error('Erro de rede:', error);
+                showMessage('Erro de conexão com o servidor. Verifique se o Flask está rodando em http://127.0.0.1:5000.', true);
+            }
+        });
+
+        document.getElementById('editForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-id').value;
+            const data = {
+                nome: document.getElementById('edit-nome').value,
+                cargo: document.getElementById('edit-cargo').value,
+                setor: document.getElementById('edit-setor').value,
+                salario: parseFloat(document.getElementById('edit-salario').value),
+                tipo: document.getElementById('edit-tipo').value,
+                ativo: document.getElementById('edit-ativo').checked,
+            };
+            try {
+                const response = await fetch(`${API_BASE_URL}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(result.message, false);
+                    closeEditModal();
+                    fetchPessoas();
+                } else {
+                    showMessage(`Erro ao atualizar: ${result.message}`, true);
+                }
+            } catch (error) {
+                console.error('Erro de rede:', error);
+                showMessage('Erro de conexão com o servidor.', true);
+            }
+        });
+
+        window.deletePessoa = async (id) => {
+            if (!confirm(`Tem certeza que deseja excluir o colaborador ID ${id}?`)) {
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/${id}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(result.message, false);
+                    fetchPessoas();
+                } else {
+                    showMessage(`Erro ao excluir: ${result.message}`, true);
+                }
+            } catch (error) {
+                console.error('Erro de rede:', error);
+                showMessage('Erro de conexão com o servidor.', true);
+            }
+        };
+
+        window.toggleAtivo = async (id, isCurrentlyActive) => {
+            const endpoint = isCurrentlyActive ? 'desativar' : 'ativar';
+            try {
+                const response = await fetch(`${API_BASE_URL}/${id}/${endpoint}`, {
+                    method: 'PATCH'
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(result.message, false);
+                    fetchPessoas();
+                } else {
+                    showMessage(`Erro ao ${endpoint}: ${result.message}`, true);
+                }
+            } catch (error) {
+                console.error('Erro de rede:', error);
+                showMessage('Erro de conexão com o servidor.', true);
+            }
+        };
+
+
+        // --- Renderização de Dados da Tabela ---
+
+        async function fetchPessoas() {
+            try {
+                const response = await fetch(API_BASE_URL);
+                const result = await response.json();
+
+                if (response.ok) {
+                    const pessoas = result.pessoas;
+                    renderPessoas(pessoas);
+                    document.getElementById('totalCount').textContent = result.total;
+                    // Chamada para renderizar todos os gráficos e cards
+                    renderAllCharts(pessoas); 
+                } else {
+                    showMessage(`Erro ao carregar dados: ${result.message}`, true);
+                    renderPessoas([]);
+                }
+            } catch (error) {
+                console.error('Erro de rede:', error);
+                showMessage('Erro ao conectar com a API.', true);
+                renderPessoas([]);
+            }
+        }
+
+        function renderPessoas(pessoas) {
+            const tbody = document.getElementById('pessoasTableBody');
+            tbody.innerHTML = ''; 
+
+            if (pessoas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-gray-500">Nenhum colaborador cadastrado.</td></tr>';
+                return;
+            }
+
+            pessoas.forEach(pessoa => {
+                const statusClass = pessoa.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                const statusText = pessoa.ativo ? 'Ativo' : 'Inativo';
+                const toggleActionText = pessoa.ativo ? 'Desativar' : 'Ativar';
+                const toggleActionClass = pessoa.ativo ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600';
+
+                const row = `
+                    <tr class="hover:bg-gray-50 transition duration-100">
+                        <td class="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${pessoa.id}</td>
+                        <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-700">${pessoa.nome}</td>
+                        <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-700">${pessoa.cargo}</td>
+                        <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-700">${pessoa.setor || 'N/A'}</td>
+                        <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-700">R$ ${pessoa.salario ? pessoa.salario.toFixed(2).replace('.', ',') : '0,00'} (${pessoa.tipo})</td>
+                        <td class="px-3 py-3 whitespace-nowrap text-center">
+                            <span class="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full ${statusClass}">
+                                ${statusText}
+                            </span>
+                        </td>
+                        <td class="px-3 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                            <button onclick='openEditModal(${JSON.stringify(pessoa)})' class="text-indigo-600 hover:text-indigo-900 bg-indigo-100 px-3 py-1 rounded-full text-xs transition duration-150">
+                                Editar
+                            </button>
+                            <button onclick="toggleAtivo(${pessoa.id}, ${pessoa.ativo})" class="${toggleActionClass} text-white px-3 py-1 rounded-full text-xs transition duration-150">
+                                ${toggleActionText}
+                            </button>
+                            <button onclick="deletePessoa(${pessoa.id})" class="text-red-600 hover:text-red-900 bg-red-100 px-3 py-1 rounded-full text-xs transition duration-150">
+                                Excluir
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+        
+        // ----------------------------------------------------
+        // Lógica e Funções de Gráficos e Análise (Chart.js)
+        // ----------------------------------------------------
+
+        const CHART_COLORS = [
+            '#4f46e5', // primary
+            '#f97316', // secondary
+            '#10b981', // emerald
+            '#f59e0b', // amber
+            '#ef4444', // red
+            '#3b82f6', // blue
+            '#a855f7', // purple
+            '#06b6d4', // cyan
+        ];
+
+        function generateBackgroundColors(count) {
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                colors.push(CHART_COLORS[i % CHART_COLORS.length]);
+            }
+            return colors;
+        }
+
+        // Função principal para renderizar todos os gráficos
+        function renderAllCharts(pessoas) {
+            if (pessoas.length === 0) {
+                Object.keys(myCharts).forEach(key => {
+                    if (myCharts[key]) myCharts[key].destroy();
+                });
+                myCharts = {};
+                renderTotalCards(0);
+                renderMediaSalarialTable({});
+                renderDispersaoTable({});
+                return;
+            }
+
+            const { setoresTotal, setoresAtivos, totalGastoMensal } = processarDadosPorSetor(pessoas);
+            
+            // --- Novos Totalizadores ---
+            renderTotalCards(totalGastoMensal);
+
+            // --- Gráficos Pie/Doughnut ---
+            renderDoughnutChart('chartGastosSetorTotal', 'Gastos Totais por Setor', setoresTotal.labels, setoresTotal.salarios);
+            renderDoughnutChart('chartGastosSetorAtivo', 'Gastos Ativos por Setor', setoresAtivos.labels, setoresAtivos.salarios);
+            renderPieChart('chartContagemSetorTotal', 'Contagem Total por Setor', setoresTotal.labels, setoresTotal.contagens);
+            renderPieChart('chartContagemSetorAtivo', 'Contagem Ativa por Setor', setoresAtivos.labels, setoresAtivos.contagens);
+            
+            const { ativosLabels, ativosContagens } = processarDadosAtivosInativos(pessoas);
+            renderPieChart('chartAtivosInativos', 'Status: Ativos vs. Inativos', ativosLabels, ativosContagens);
+            
+            const { tipoLabels, tipoContagens, tipoSalarios, tipoSalariosAtivo } = processarDadosPorTipoContrato(pessoas);
+            renderPieChart('chartTipoContrato', 'Distribuição por Tipo de Contrato', tipoLabels, tipoContagens);
+            renderPieChart('chartGastosTipoContrato', 'Gastos por Tipo de Contrato', tipoLabels, tipoSalarios);
+            renderPieChart('chartGastosTipoContratoAtivo', 'Gastos Ativos por Tipo de Contrato', tipoLabels, tipoSalariosAtivo);
+
+            // --- Gráficos de Barra ---
+            renderBarChart('chartContagemSetorBarra', 'Contagem Total por Setor', setoresTotal.labels, setoresTotal.contagens, 'Pessoas', false); // Contagem vertical
+            
+            // NOVO: Gastos por Setor (Barra)
+            renderBarChart('chartGastosSetorBarra', 'Gastos Totais por Setor', setoresTotal.labels, setoresTotal.salarios, 'Gastos (R$)', false, true); 
+
+            const { cargosLabels, cargosContagens } = processarCargosPorSetor(pessoas, 'TI');
+            renderBarChart('chartCargosTI', 'Cargos no Setor de TI', cargosLabels, cargosContagens, 'Pessoas (TI)', true); // Cargos TI horizontal
+
+            // --- Novas Tabelas ---
+            const mediaSalarialData = calcularMediaSalarial(setoresTotal.dados);
+            renderMediaSalarialTable(mediaSalarialData);
+
+            // A tabela de dispersão usa os mesmos dados totais por setor
+            renderDispersaoTable(setoresTotal.dados);
+        }
+
+        // --- Novas Funções de Processamento ---
+
+        function processarDadosPorSetor(pessoas) {
+            let totalGastoMensal = 0;
+
+            const gastosPorSetor = pessoas.reduce((acc, p) => {
+                const setor = p.setor && p.setor.trim() !== '' ? p.setor : 'Não Informado';
+                const salario = p.salario || 0;
+                
+                if (p.ativo) {
+                    totalGastoMensal += salario;
+                }
+                
+                // Total
+                acc.total[setor] = acc.total[setor] || { salario: 0, contagem: 0 };
+                acc.total[setor].salario += salario;
+                acc.total[setor].contagem++;
+                
+                // Ativos
+                if (p.ativo) {
+                    acc.ativos[setor] = acc.ativos[setor] || { salario: 0, contagem: 0 };
+                    acc.ativos[setor].salario += salario;
+                    acc.ativos[setor].contagem++;
+                }
+                return acc;
+            }, { total: {}, ativos: {} });
+
+            // Formatando para o Chart.js
+            const setoresTotalLabels = Object.keys(gastosPorSetor.total);
+            const setoresTotalSalarios = setoresTotalLabels.map(s => gastosPorSetor.total[s].salario);
+            const setoresTotalContagens = setoresTotalLabels.map(s => gastosPorSetor.total[s].contagem);
+
+            const setoresAtivosLabels = Object.keys(gastosPorSetor.ativos);
+            const setoresAtivosSalarios = setoresAtivosLabels.map(s => gastosPorSetor.ativos[s].salario);
+            const setoresAtivosContagens = setoresAtivosLabels.map(s => gastosPorSetor.ativos[s].contagem);
+
+            return { 
+                setoresTotal: { 
+                    labels: setoresTotalLabels, 
+                    salarios: setoresTotalSalarios, 
+                    contagens: setoresTotalContagens,
+                    dados: gastosPorSetor.total // Passa os dados brutos para as tabelas
+                },
+                setoresAtivos: { labels: setoresAtivosLabels, salarios: setoresAtivosSalarios, contagens: setoresAtivosContagens },
+                totalGastoMensal: totalGastoMensal
+            };
+        }
+
+        function calcularMediaSalarial(setorDados) {
+            const mediaData = {};
+            for (const setor in setorDados) {
+                const { salario, contagem } = setorDados[setor];
+                if (contagem > 0) {
+                    mediaData[setor] = salario / contagem;
+                } else {
+                    mediaData[setor] = 0;
+                }
+            }
+            return mediaData;
+        }
+
+        // --- Funções de Renderização de Cards e Tabelas ---
+
+        function renderTotalCards(totalGastoMensal) {
+            const totalGasto12Meses = totalGastoMensal * 12;
+
+            document.getElementById('totalGastoMes').textContent = formatCurrency(totalGastoMensal);
+            document.getElementById('totalGasto12Meses').textContent = formatCurrency(totalGasto12Meses);
+        }
+
+        function renderMediaSalarialTable(mediaData) {
+            const table = document.getElementById('mediaSalarialTable');
+            table.innerHTML = `
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Setor</th>
+                        <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Média Salarial</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    ${Object.keys(mediaData).map(setor => `
+                        <tr>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${setor}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">
+                                ${formatCurrency(mediaData[setor])}
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            if (Object.keys(mediaData).length === 0) {
+                 table.querySelector('tbody').innerHTML = '<tr><td colspan="2" class="py-4 text-center text-gray-500">Nenhum dado de setor.</td></tr>';
+            }
+        }
+
+        function renderDispersaoTable(setorDados) {
+            const table = document.getElementById('dispersaoTable');
+            table.innerHTML = `
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Setor</th>
+                        <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Pessoas</th>
+                        <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Custo Total (Mês)</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    ${Object.keys(setorDados).map(setor => `
+                        <tr>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${setor}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-center">
+                                ${setorDados[setor].contagem}
+                            </td>
+                            <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">
+                                ${formatCurrency(setorDados[setor].salario)}
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+             if (Object.keys(setorDados).length === 0) {
+                 table.querySelector('tbody').innerHTML = '<tr><td colspan="3" class="py-4 text-center text-gray-500">Nenhum dado de setor.</td></tr>';
+            }
+        }
+
+        // --- Funções de Processamento (Mantidas) ---
+        function processarDadosAtivosInativos(pessoas) {
+             const statusCounts = pessoas.reduce((acc, p) => {
+                const status = p.ativo ? 'Ativo' : 'Inativo';
+                acc[status] = (acc[status] || 0) + 1;
+                return acc;
+            }, {});
+            return { ativosLabels: Object.keys(statusCounts), ativosContagens: Object.values(statusCounts) };
+        }
+        function processarDadosPorTipoContrato(pessoas) {
+            const dados = pessoas.reduce((acc, p) => {
+                const tipo = p.tipo || 'Não Informado';
+                const salario = p.salario || 0;
+                acc.contagem[tipo] = (acc.contagem[tipo] || 0) + 1;
+                acc.salarioTotal[tipo] = (acc.salarioTotal[tipo] || 0) + salario;
+                if (p.ativo) { acc.salarioAtivo[tipo] = (acc.salarioAtivo[tipo] || 0) + salario; }
+                return acc;
+            }, { contagem: {}, salarioTotal: {}, salarioAtivo: {} });
+            const labels = Object.keys(dados.contagem);
+            return {
+                tipoLabels: labels,
+                tipoContagens: labels.map(l => dados.contagem[l]),
+                tipoSalarios: labels.map(l => dados.salarioTotal[l]),
+                tipoSalariosAtivo: labels.map(l => dados.salarioAtivo[l] || 0)
+            };
+        }
+        function processarCargosPorSetor(pessoas, setor) {
+            const contagemCargos = pessoas
+                .filter(p => p.setor && p.setor.toUpperCase() === setor.toUpperCase())
+                .reduce((acc, p) => {
+                    const cargo = p.cargo && p.cargo.trim() !== '' ? p.cargo : 'Não Informado';
+                    acc[cargo] = (acc[cargo] || 0) + 1;
+                    return acc;
+                }, {});
+            return { cargosLabels: Object.keys(contagemCargos), cargosContagens: Object.values(contagemCargos) };
+        }
+
+
+        // --- Funções de Renderização do Chart.js (Com melhorias para BarChart) ---
+
+        function renderDoughnutChart(canvasId, title, labels, data) {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+            if (myCharts[canvasId]) { myCharts[canvasId].destroy(); }
+
+            myCharts[canvasId] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Salário (R$)',
+                        data: data,
+                        backgroundColor: generateBackgroundColors(labels.length),
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: false },
+                        tooltip: { 
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed !== null) {
+                                        label += formatCurrency(context.parsed);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderPieChart(canvasId, title, labels, data) {
+             const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+            if (myCharts[canvasId]) { myCharts[canvasId].destroy(); }
+
+            myCharts[canvasId] = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Contagem',
+                        data: data,
+                        backgroundColor: generateBackgroundColors(labels.length),
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: false }
+                    }
+                }
+            });
+        }
+
+        function renderBarChart(canvasId, title, labels, data, dataLabel, isHorizontal = false, isCurrency = false) {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+
+            if (myCharts[canvasId]) {
+                myCharts[canvasId].destroy(); 
+            }
+
+            myCharts[canvasId] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: dataLabel,
+                        data: data,
+                        backgroundColor: generateBackgroundColors(labels.length),
+                        borderColor: generateBackgroundColors(labels.length).map(c => c.replace('1', '9')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: isHorizontal ? 'y' : 'x',
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed !== null) {
+                                        if (isCurrency) {
+                                            label += formatCurrency(context.parsed.y || context.parsed.x);
+                                        } else {
+                                            label += (context.parsed.y || context.parsed.x);
+                                        }
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            // Adiciona formatação R$ no eixo Y se for monetário e vertical
+                            ticks: {
+                                callback: function(value) {
+                                    if (isCurrency && !isHorizontal) {
+                                        return formatCurrency(value);
+                                    }
+                                    return value;
+                                }
+                            }
+                        },
+                        x: {
+                            beginAtZero: true,
+                            // Adiciona formatação R$ no eixo X se for monetário e horizontal
+                            ticks: {
+                                callback: function(value) {
+                                    if (isCurrency && isHorizontal) {
+                                        return formatCurrency(value);
+                                    }
+                                    return value;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+
+        // --- Inicialização ---
+        document.addEventListener('DOMContentLoaded', fetchPessoas);
+
+    </script>
+</body>
+</html>
