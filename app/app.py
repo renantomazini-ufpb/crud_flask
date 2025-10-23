@@ -5,19 +5,25 @@ from sqlalchemy import exc
 
 app = Flask(__name__)
 
-#depois passo para um banco
+#depois passo para um banco 21/10
 #pessoas = []
 #pessoas_id_control = 1
 
-#depois chegou!
+#depois chegou! 23/10
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pessoas.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app) # criado DB
 
+from models.pessoa import Pessoa #importando modelo
 
+#garante criação das tabelas
+with app.app_context():
+    db.create_all()
+
+#vamos resolver aqui
 @app.route("/pessoas", methods=["POST"])
 def criar_pessoa():
-    global pessoas_id_control
+    '''global pessoas_id_control
     data = request.get_json() # na parte do front, será enviado os campos
     new_pessoa = {
         "id": pessoas_id_control,
@@ -31,6 +37,28 @@ def criar_pessoa():
     pessoas.append(new_pessoa)
     pessoas_id_control += 1
     return jsonify({"message": "cadastro realizado!", "pessoa": new_pessoa}), 201
+'''
+    data = request.get_json()
+
+    try:
+        new_pessoa = Pessoa(
+            nomed=data.get("nome"),
+            cargo=data.get("cargo"),
+            setor=data.get("setor"),
+            salario=data.get("salario"),
+            tipo=data.get("tipo"),
+            ativo=data.get("ativo", False)
+        )
+        db.session.add(new_pessoa)
+        db.session.commit()
+        return jsonify({"message":"Cadastro realizado", "pessoa": new_pessoa.to_dict()}), 201
+    except exc.SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"message": f"Erro ao criar pessoa: {str(e)}"}), 500
+    #mds
+
+
+
 
 @app.route("/pessoas", methods=["GET"])
 def get_pessoas():
